@@ -116,4 +116,22 @@ class ScholarshipCalculatorTest {
     void scholarship_lowGpa_returns0() {
         assertEquals(0, calc.scholarship(2.5, 20, false));
     }
+
+    // ===== Part C: loop boundaries in gpa() (0 / 1 / 2+ iterations) =====
+
+    @Test
+    void gpa_loopZeroIterations_nullAndEmpty_throw() {
+        assertThrows(IllegalArgumentException.class, () -> calc.gpa(new double[]{}));
+        assertThrows(IllegalArgumentException.class, () -> calc.gpa(null));
+    }
+
+    @Test
+    void gpa_loopOneIteration_singleA_returns4() {
+        assertEquals(4.0, calc.gpa(new double[]{95}), EPS);
+    }
+
+    @Test
+    void gpa_loopManyIterations_fourScores_returns2_5() {
+        assertEquals(2.5, calc.gpa(new double[]{95, 85, 75, 65}), EPS);
+    }
 }
