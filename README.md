@@ -14,7 +14,7 @@ OpenJDK Runtime Environment (build 21.0.12.1+1-1-24.04.4-Ubuntu)
 OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-24.04.4-Ubuntu, mixed mode, sharing)
 
 $ mvn -version
-[1mApache Maven 3.8.7[m
+Apache Maven 3.8.7
 Maven home: /usr/share/maven
 Java version: 21.0.12.1, vendor: Ubuntu, runtime: /usr/lib/jvm/java-21-openjdk-amd64
 Default locale: en_US, platform encoding: UTF-8
@@ -24,99 +24,113 @@ OS name: "linux", version: "7.0.0-42-generic", arch: "amd64", family: "unix"
 ## Төслийн бүтэц
 
 ~~~
-lab08-mockito/
+lab09-jacoco/
 ├── pom.xml
 ├── README.md
+├── cfg.png
 ├── results/
-│   ├── mvn-test.txt
-│   ├── mvn-test-mutant-1.txt
-│   ├── mvn-test-mutant-2.txt
-│   ├── mvn-test-mutant-3-before-fix.txt
-│   └── mvn-test-mutant-3.txt
+│   ├── mvn-verify-A.txt
+│   ├── jacoco-A.csv
+│   ├── mvn-verify-B.txt
+│   ├── jacoco-B.csv
+│   ├── mvn-test-D-fail.txt
+│   ├── mvn-verify-final.txt
+│   └── jacoco-final.csv
 └── src/
-    ├── main/java/mn/edu/must/sqat/
-    │   ├── Student.java
-    │   ├── StudentRepository.java
-    │   ├── EmailSender.java
-    │   └── CourseRegistrationService.java
-    └── test/java/mn/edu/must/sqat/
-        └── CourseRegistrationServiceTest.java
+    ├── main/java/mn/edu/must/sqat/ScholarshipCalculator.java
+    └── test/java/mn/edu/must/sqat/ScholarshipCalculatorTest.java
 ~~~
 
-`pom.xml`-д `maven-compiler-plugin` 3.13.0-г тодорхой зааж өгсөн: Ubuntu-ийн `apt`-ийн Maven анхдагчаар
-compiler-plugin 3.1 ашигладаг бөгөөд тэр нь `maven.compiler.release=17`-г ойлгодоггүй тул
+`pom.xml`-д `maven-compiler-plugin` 3.13.0-г тодорхой зааж өгсөн: Ubuntu-ийн `apt`-ийн Maven (3.8.7)
+анхдагчаар compiler-plugin 3.1 ашигладаг бөгөөд тэр нь `maven.compiler.release=17`-г ойлгодоггүй тул
 "Source option 5 is no longer supported" алдаа өгч байсан.
 
-## Хэсэг A: Тестүүд
+## Хэсэг A: Happy path ба эхний хэмжилт
 
-`mvn test` → **Tests run: 10, Failures: 0, Errors: 0, Skipped: 0**, BUILD SUCCESS
-(нотолгоо: [`results/mvn-test.txt`](results/mvn-test.txt)). 7 энгийн тест + A8-ийн 3 мөр.
+5 тест (`letterGrade(95)="A"`, `letterGrade(85)="B"`, `gpa([95,85])=3.5`,
+`scholarship(3.9,16,false)=100`, `scholarship(3.5,13,false)=70`) →
+[`results/mvn-verify-A.txt`](results/mvn-verify-A.txt): **Tests run: 5**, BUILD SUCCESS.
 
-| №  | Тестийн нэр | Гол хэрэгсэл |
-|----|-------------|--------------|
-| A1 | `register_activeStudentWithPrerequisites_returnsOkSavesAndSendsEmail` | `when` + `verify` |
-| A2 | `register_unknownStudent_returnsErrorNoStudentAndDoesNotSaveOrEmail` | `verify(..., never())` |
-| A3 | `register_inactiveStudent_returnsErrorInactiveAndNeverTouchesEmail` | `verifyNoInteractions` |
-| A4 | `register_missingPrerequisite_returnsErrorPrerequisitesAndDoesNotSave` | `when` + `never` |
-| A5 | `register_emailSenderThrows_stillReturnsOkAndRegistrationIsSaved` | `doThrow(...).when(...)` |
-| A6 | `register_nullStudentIdOrCourseId_throwsIllegalArgumentAndTouchesNoDependency` | `assertThrows` |
-| A7 | `register_success_emailBodyContainsCourseId` | `ArgumentCaptor` |
-| A8 | `register_invalidInput_returnsMatchingErrorAndDoesNotSaveOrEmail` (3 мөр) | `@ParameterizedTest` + `@CsvSource` |
+[`results/jacoco-A.csv`](results/jacoco-A.csv)-аас:
 
-A8-ийн гурван мөр: `ERROR_NO_STUDENT`, `ERROR_INACTIVE_STUDENT`, `ERROR_NO_COURSE`.
-`ERROR_NO_COURSE`-г A1–A7-ийн аль нь ч шалгадаггүй тул A8-д оруулж энэ цоорхойг бөглөсөн.
+| Хэмжүүр | Covered | Missed | Хамралт |
+|---------|---------|--------|---------|
+| Branch  | 20 | 21 | 20/41 = **48.8%** |
+| Line    | 15 | 10 | 15/25 = **60.0%** |
 
-Matcher-ийн дүрэм: нэг дуудалтад matcher хэрэглэсэн бол бүх аргументад matcher
-(`eq(...)`, `anyString()`, `contains(...)`) хэрэглэсэн; matcher-гүй дуудалтад бүгд бодит утга.
+**Ажиглалт.** Шар ромботой (хагас хамрагдсан) мөрүүд нь голдуу оролт шалгах нөхцлүүд
+(`score < 0 || score > 100`, `scores == null || scores.length == 0`, `gpa < 0 || gpa > 4 || credits < 0`)
+бөгөөд happy path тестүүд зөвхөн тэдгээрийн "зөв оролт" (F) салааг дайрсан; мөн `switch`-д зөвхөн
+A, B тохиолдол, `&&` нөхцлүүдэд зөвхөн нэг талын утга шалгагдсан. Улаан (огт хүрээгүй) мөрүүд нь
+бүх `throw` мөр буюу алдааны замууд, C/D/F үсгэн дүн, 50% ба 0% тэтгэлгийн буцаалтууд байсан —
+өөрөөр хэлбэл happy path тест алдааны болон "муу" тохиолдлуудыг огт шалгадаггүй.
 
-### A8 ба `lenient()`
+## Хэсэг B: CFG ба branch 100%
 
-A8-ийн мөр бүр `register()`-ийн өөр алхам дээр зогсдог (жишээ нь `ERROR_NO_STUDENT` мөрөнд
-`courseExists`, `prerequisites` огт дуудагдахгүй), гэтэл бүх мөрөнд ижил stub-уудыг тохируулдаг.
-`MockitoExtension`-ий strict stubs горим ашиглагдаагүй stub-ыг `UnnecessaryStubbingException`
-болгодог тул эдгээр stub-ыг `lenient().when(...)` хэлбэрээр зарлаж, "энэ мөрөнд ашиглагдахгүй
-байж болно" гэдгийг Mockito-д тодорхой хэлсэн.
+![scholarship() CFG](cfg.png)
 
-## Хэсэг B: Мини мутаци
+[`cfg.png`](cfg.png) — `scholarship()`-ийн CFG (гараар зурсан): 4 оролтын шалгалт + 6 буцаалтын
+зангилаа; ирмэг бүрийн хажууд түүнийг дайрч буй тестийн метод нэр бичигдсэн. Хэсэг A-гийн дараа
+хамрагдаагүй ирмэгүүд (гурван `throw` ирмэг, `hasViolation = T`, `credits >= 15 = F`,
+`credits >= 12 = F`, `gpa >= 3.4 = F`, `gpa >= 3.0 = T/F`) шинэ тестийн жагсаалт болсон.
 
-| Мутант | Эвдрэл | Унасан тестүүд | Төрөл | Файл |
-|--------|--------|----------------|-------|------|
-| 1 | `if (!student.active()) ...` шалгалтыг комментолсон | A3 `register_inactiveStudent_...`, A8 `[2]` (`ERROR_INACTIVE_STUDENT` мөр) | Failures: 2 | [`mvn-test-mutant-1.txt`](results/mvn-test-mutant-1.txt) |
-| 2 | `repository.saveRegistration(...)` дуудалтыг комментолсон | A1 `register_activeStudentWithPrerequisites_...`, A5 `register_emailSenderThrows_...` | Failures: 2 | [`mvn-test-mutant-2.txt`](results/mvn-test-mutant-2.txt) |
-| 3 | Эхний `if`-ээс `\|\| courseId == null`-ийг устгасан | Анх: **нэг ч тест унаагүй**, BUILD SUCCESS ([before-fix](results/mvn-test-mutant-3-before-fix.txt)). A6-г зассаны дараа: A6 `register_nullStudentIdOrCourseId_...` | Failures: 1 | [`mvn-test-mutant-3.txt`](results/mvn-test-mutant-3.txt) |
+Нэмсэн 15 тест:
+- `letterGrade`: C (75), D (65), F (50), `-1` ба `101`-д `assertThrows`.
+- `gpa`: A/B/C/D/F бүгдийг агуулсан массив (`switch`-ийн `default` салаа), `null` ба хоосон массивт `assertThrows`.
+- `scholarship`: `||` нөхцөл бүрийн үнэн утганд тусдаа гурван `assertThrows` (`gpa=-0.1`, `gpa=4.1`, `credits=-1`),
+  зөрчилтэй (0), голч хангасан ч кредит дутуу (`3.9,13 → 70`, `3.5,10 → 50`), бага голч (`2.5,20 → 0`).
 
-**Мутант 1.** A3-т `courseExists` stub хийгээгүй тул mock `false` буцааж, үйлчилгээ
-`ERROR_NO_COURSE` буцаана → `assertEquals` унана. A8-ийн 2-р мөрөнд хичээл байгаа, холбоо
-хичээл хоосон тул бүртгэл хийгдэж `"OK"` буцаана → унана.
+Нийт **20 тест** шаардагдсан ([`results/mvn-verify-B.txt`](results/mvn-verify-B.txt): Tests run: 20, BUILD SUCCESS).
+[`results/jacoco-B.csv`](results/jacoco-B.csv): Branch 41/41, Line 25/25 — **BRANCH_MISSED = 0, LINE_MISSED = 0**.
 
-**Мутант 2.** `verify(repository).saveRegistration(...)` агуулсан A1, A5 унасан.
-A7 зөвхөн и-мэйлийг шалгадаг тул энэ мутантад ногоон үлдсэн — нэг тест бүх зүйлийг
-шалгах албагүй, харин тестийн багц бүхэлдээ барих ёстой.
+## Хэсэг C: Давталтын заагийн тестүүд
 
-**Мутант 3 ба засвар.** Анхны A6 зөвхөн `register(null, COURSE_ID)`-г шалгадаг байсан тул
-`courseId == null` шалгалтыг устгахад нэг ч тест унаагүй — тестийн цоорхой. A6-д
-`register(STUDENT_ID, null)`-д `IllegalArgumentException` шидэгдэхийг шалгах хоёр дахь
-`assertThrows` нэмж, нэрийг `register_nullStudentIdOrCourseId_...` болгосон (тестийн тоо 10 хэвээр).
-Засварын дараа мутант дээр `findStudent` stub-гүй тул `null` буцаж, үйлчилгээ exception шидэхийн оронд
-`"ERROR_NO_STUDENT"` буцаана → A6 унана.
+| Давталт | Тест | Шалгалт |
+|---------|------|---------|
+| 0 удаа  | `gpa_loopZeroIterations_nullAndEmpty_throw` | хоосон массив ба `null` → `assertThrows(IllegalArgumentException)` |
+| 1 удаа  | `gpa_loopOneIteration_singleA_returns4` | `gpa([95]) == 4.0` |
+| 2+ удаа | `gpa_loopManyIterations_fourScores_returns2_5` | `gpa([95, 85, 75, 65]) == 2.5` |
 
-**Хэсэг B дүгнэлт.** Гурван мутантын хоёрыг анхны тестүүд шууд барьсан, гуравдахь нь
-спецификацийн "хоёул шаардлагатай" гэсэн нөхцөлийн зөвхөн хагасыг шалгаж байсныг илрүүлсэн.
-Бүх тест ногоон байх нь кодын бүх логик шалгагдсан гэсэн үг биш — зориуд эвдэж үзэх нь
-тест үнэхээр ажил хийж байгааг батлах хамгийн энгийн арга юм. Мутаци бүрийн дараа код
-сэргээгдэж, эцсийн `results/mvn-test.txt` дахин ногоон гарсан.
+Хамралт аль хэдийн 100% байсан тул эдгээр тест тоог өсгөөгүй (23 тест, BUILD SUCCESS). Гэхдээ
+хамралт зөвхөн "давталтын бие ядаж нэг удаа ажилласан уу" гэдгийг хэмждэг — давталтын тоолуур,
+хуваах үйлдлийн хуваагч (`scores.length`), анхны утга (`total = 0`) зэрэгт гардаг алдаа зөвхөн
+0 / 1 / олон удаагийн зааг тохиолдолд л илэрдэг тул эдгээр тест хэрэгтэй хэвээр.
 
-## Дүгнэлт
+## Хэсэг D: Хамралт 100% — гэхдээ алдаа амьд
 
-Mock нь тест дотор Mockito-гоор динамикаар үүсгэгддэг, "ямар дуудлагад юу буцаах" (stub) болон
-"ямар дуудлага хийгдсэн бэ" (verify) гэдгийг тест бүрт тохируулж шалгах боломжтой объект юм;
-гараар бичсэн fake нь интерфейсийг бодитоор (жишээ нь `HashMap` дээр суурилсан сан) хэрэгжүүлсэн
-хөнгөн класс бөгөөд төлөв хадгалдаг, олон тестэд дахин ашиглагддаг ч харилцааг шалгах чадваргүй.
-Mock нь гадаад, удаан эсвэл тодорхойгүй хамаарлуудад (өгөгдлийн сан, SMTP, HTTP API, цаг)
-тохиромжтой. Харин `Student` record шиг энгийн утгын объект, тестлэгдэж буй класс өөрөө,
-мөн өөрийн эзэмшдэггүй гуравдагч талын төрлийг шууд mock хийх нь буруу — ийм үед бодит объект
-эсвэл өөрийн интерфейсээр боосон адаптер ашиглах нь зөв. `verify`-г хэтрүүлбэл тест үр дүнг
-бус хэрэгжүүлэлтийн дотоод алхмуудыг (дуудлагын дараалал, тоо) шалгаж эхэлнэ. Ингэснээр
-зан төлөв өөрчлөгдөөгүй рефакторинг ч тестийг унагаж, тест "хэврэг" болдог. Тиймээс энэ
-лабораторид `verify`-г зөвхөн спецификацид шууд бичигдсэн гаж нөлөөнд (бүртгэл хадгалагдах,
-и-мэйл явах/явахгүй) хэрэглэсэн.
+Спецификацийн дагуу 7 зааг утгын тест (`@ParameterizedTest` + `@CsvSource`):
+`60→D`, `59.99→F`, `69.99→D`, `0→F`, `100→A`, `89.99→B`, `90→A`.
+
+[`results/mvn-test-D-fail.txt`](results/mvn-test-D-fail.txt) — **Tests run: 30, Failures: 1**, BUILD FAILURE:
+
+~~~
+[ERROR] mn.edu.must.sqat.ScholarshipCalculatorTest.letterGrade_boundaryScores_matchSpec(double, String)[1] -- Time elapsed: 0.028 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <D> but was: <F>
+[ERROR]   ScholarshipCalculatorTest.letterGrade_boundaryScores_matchSpec:151 expected: <D> but was: <F>
+~~~
+
+Алдаа: `letterGrade()`-д `if (score > 60) return "D";` — спецификацид "60-69.99 → D" гэсэн тул
+60 оноо "D" байх ёстой байтал "F" буцааж байв. Засвар тусдаа commit-оор:
+`Fix letterGrade: > 60 -> >= 60, spec says 60 is D`.
+
+Засварын дараа [`results/mvn-verify-final.txt`](results/mvn-verify-final.txt): **Tests run: 30, Failures: 0**, BUILD SUCCESS;
+[`results/jacoco-final.csv`](results/jacoco-final.csv): Branch 41/41, Line 25/25 — **BRANCH_MISSED = 0, LINE_MISSED = 0**.
+
+### Гол дүгнэлт
+
+Хэсэг B-гийн дараа branch хамралт 100% байсан ч энэ алдаа "үл үзэгдэгч" байсан, учир нь
+`score > 60` ба `score >= 60` хоёул яг ижил хоёр салааг (үнэн / худал) үүсгэдэг — JaCoCo зөвхөн салаа
+бүр ядаж нэг удаа дайрагдсан эсэхийг тоолдог тул 65 ба 50 онооны тестүүд хоёр салааг хоёуланг нь
+"хамарсан" гэж үзсэн. Хоёр хувилбарын ялгаа зөвхөн яг 60 гэсэн нэг цэг дээр илэрдэг бөгөөд тэр
+утгыг шалгасан тест л алдааг барьж чадсан. Хамралт нь код тестийн явцад ажилласан эсэхийг (ямар
+мөр, ямар салаа гүйцэтгэгдсэн) хэмждэг; харин үр дүн зөв эсэх, зааг утга, спецификацийн бүх
+нөхцөл шалгагдсан эсэхийг хэмждэггүй. Тиймээс хамралт бол шалгагдаагүй кодыг олох зайлшгүй
+хэрэгсэл боловч зөв ажиллагааны хангалттай нотолгоо биш — түүнийг зааг утгын шинжилгээ,
+тэнцүү ангиллын тест зэрэг тусгай арга техниктэй хослуулах ёстой.
+
+## AI туслахын хэрэглээ
+
+Claude (Anthropic) AI туслахыг ашигласан: Хэсэг A–D-ийн тестийн кодын ноорог, `scholarship()`-ийн
+CFG-ийн ирмэг-тестийн харгалзааг гаргах, terminal командууд болон README-ийн текстийн ноорогт.
+Бүх тестийг өөрийн машин дээр `mvn verify` / `mvn test`-ээр ажиллуулж, `results/` доторх
+бодит гаралт, `jacoco.csv`-ийн тоонуудтай тулгаж шалгасан; CFG-г өөрөө гараар зурсан.
